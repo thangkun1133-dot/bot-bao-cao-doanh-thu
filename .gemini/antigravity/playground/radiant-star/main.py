@@ -1,6 +1,9 @@
 import logging
+import threading
+import os
 from datetime import time
 
+from flask import Flask
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
@@ -19,6 +22,17 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
 )
+
+# ── Health check server (để Render / UptimeRobot ping) ───────────────────────
+flask_app = Flask(__name__)
+
+@flask_app.route("/")
+def health():
+    return "✅ Bot Báo Cáo Doanh Thu đang hoạt động!", 200
+
+def run_flask():
+    port = int(os.environ.get("PORT", 8080))
+    flask_app.run(host="0.0.0.0", port=port)
 
 
 def main():
@@ -109,4 +123,7 @@ def main():
 
 
 if __name__ == "__main__":
+    # Chạy Flask server trong thread riêng để Render/UptimeRobot có thể ping
+    flask_thread = threading.Thread(target=run_flask, daemon=True)
+    flask_thread.start()
     main()

@@ -11,7 +11,6 @@ from models import Revenue, Group
 from utils import (
     generate_revenue_excel,
     format_currency,
-    run_ocr_on_image,
     build_leaderboard_text,
 )
 from config import Config
@@ -398,49 +397,25 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     chat = update.effective_chat
 
-    await msg.reply_text("📸 Đang quét hóa đơn... vui lòng chờ giây lát ⏳")
-
-    # Tải ảnh về
+    # Tải ảnh về làm chứng cứ
     photo = msg.photo[-1]
     tg_file = await context.bot.get_file(photo.file_id)
+    os.makedirs("invoices", exist_ok=True)
     file_path = os.path.join("invoices", f"{photo.file_id}.jpg")
     await tg_file.download_to_drive(file_path)
 
-    # OCR
-    detected = run_ocr_on_image(file_path)
-
+    full_name, _ = get_user_info(user)
     context.user_data["temp_invoice_path"] = file_path
     context.user_data["temp_source"] = "invoice"
-    context.user_data["temp_invoice_detected"] = detected
-
-    full_name, _ = get_user_info(user)
     context.user_data["temp_group_id"] = chat.id if chat.type in ("group", "supergroup") else None
-    context.user_data["temp_user"] = {
-        "id": user.id,
-        "username": user.username,
-        "full_name": full_name,
-    }
 
-    if detected:
-        keyboard = [
-            [
-                InlineKeyboardButton(f"✅ Xác nhận {format_currency(detected)}", callback_data="invoice_confirm"),
-                InlineKeyboardButton("✏️ Nhập tay", callback_data="invoice_manual"),
-            ]
-        ]
-        await msg.reply_text(
-            f"🔍 *Bot nhận diện được:*\n\n"
-            f"💰 Số tiền: *{format_currency(detected)}*\n\n"
-            f"Xác nhận hoặc nhập lại số tiền?",
-            parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup(keyboard),
-        )
-    else:
-        keyboard = [[InlineKeyboardButton("✏️ Nhập số tiền thủ công", callback_data="invoice_manual")]]
-        await msg.reply_text(
-            "⚠️ Không nhận diện được số tiền tự động.\nBấm bên dưới để nhập thủ công:",
-            reply_markup=InlineKeyboardMarkup(keyboard),
-        )
+    await msg.reply_text(
+        "📸 *Đã nhận ảnh hóa đơn!*\n\n"
+        "💰 Nhập *số tiền* trên hóa đơn (VD: 350000):",
+        parse_mode="Markdown",
+    )
+    return AWAITING_AMOUNT
+
 
 
 async def invoice_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
