@@ -1,0 +1,22 @@
+# Bảo vệ token và dữ liệu nhạy cảm
+.env
+
+# Database (tránh upload dữ liệu cá nhân)
+*.db
+*.db-journal
+
+# Ảnh hóa đơn
+invoices/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Excel export
+*.xlsx
+
+# IDE
+.vscode/
+.idea/
