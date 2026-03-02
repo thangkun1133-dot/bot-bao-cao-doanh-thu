@@ -1,5 +1,6 @@
 import logging
 import os
+import asyncio
 from datetime import datetime, timedelta
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -409,12 +410,56 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["temp_source"] = "invoice"
     context.user_data["temp_group_id"] = chat.id if chat.type in ("group", "supergroup") else None
 
-    await msg.reply_text(
-        "📸 *Đã nhận ảnh hóa đơn!*\n\n"
-        "💰 Nhập *số tiền* trên hóa đơn (VD: 350000):",
-        parse_mode="Markdown",
-    )
-    return AWAITING_AMOUNT
+    # Thử đọc bill bằng Gemini Vision
+    from utils import scan_bill_with_gemini
+    from config import Config
+
+    if Config.GEMINI_API_KEY:
+        processing_msg = await msg.reply_text("🔍 Đang đọc bill... ⏳")
+        result = await asyncio.get_event_loop().run_in_executor(
+            None, scan_bill_with_gemini, file_path
+        )
+        await processing_msg.delete()
+
+        detected = result.get("amount")
+        info = result.get("info", "")
+
+        if detected and detected > 0:
+            context.user_data["temp_amount"] = detected
+            keyboard = [
+                [
+                    InlineKeyboardButton(
+                        f"✅ Xác nhận {format_currency(detected)}",
+                        callback_data="invoice_confirm"
+                    ),
+                    InlineKeyboardButton("✏️ Nhập lại", callback_data="invoice_manual"),
+                ]
+            ]
+            text = (
+                f"🔍 *Bot đọc được từ bill:*\n\n"
+                f"💰 Số tiền: *{format_currency(detected)}*\n"
+            )
+            if info:
+                text += f"ℹ️ {info}\n"
+            text += "\nXác nhận hoặc nhập lại?"
+            await msg.reply_text(text, parse_mode="Markdown",
+                                 reply_markup=InlineKeyboardMarkup(keyboard))
+            return AWAITING_INVOICE_CONFIRM
+        else:
+            await msg.reply_text(
+                "⚠️ Không đọc được số tiền từ ảnh.\n"
+                "💰 Vui lòng nhập *số tiền* thủ công (VD: 350000):",
+                parse_mode="Markdown"
+            )
+            return AWAITING_AMOUNT
+    else:
+        # Không có Gemini API key — nhập thủ công
+        await msg.reply_text(
+            "📸 *Đã nhận ảnh hóa đơn!*\n\n"
+            "💰 Nhập *số tiền* trên hóa đơn (VD: 350000):",
+            parse_mode="Markdown",
+        )
+        return AWAITING_AMOUNT
 
 
 

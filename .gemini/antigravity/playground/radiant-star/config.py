@@ -8,6 +8,7 @@ class Config:
     DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///revenue.db")
     ADMIN_IDS = [int(i.strip()) for i in os.getenv("ADMIN_IDS", "").split(",") if i.strip()]
     REPORT_CHANNEL_ID = os.getenv("REPORT_CHANNEL_ID")
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
     @classmethod
     def validate(cls):

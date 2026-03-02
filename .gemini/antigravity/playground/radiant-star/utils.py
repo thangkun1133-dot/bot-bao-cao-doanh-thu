@@ -14,6 +14,57 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+# ─── Gemini Vision — Đọc bill banking ───────────────────────────────────────
+def scan_bill_with_gemini(image_path: str) -> dict:
+    """
+    Dùng Gemini Vision để nhận diện số tiền từ ảnh bill/chuyển khoản.
+    Trả về dict: {"amount": float|None, "info": str}
+    """
+    try:
+        from config import Config
+        import google.generativeai as genai
+        from PIL import Image
+
+        if not Config.GEMINI_API_KEY:
+            return {"amount": None, "info": "Chưa cấu hình GEMINI_API_KEY"}
+
+        genai.configure(api_key=Config.GEMINI_API_KEY)
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        img = Image.open(image_path)
+
+        prompt = """Đây là ảnh bill/biên lai chuyển khoản ngân hàng Việt Nam.
+Hãy trích xuất thông tin sau và trả lời CHÍNH XÁC theo định dạng JSON:
+{
+  "so_tien": <số tiền giao dịch, chỉ số, không có đơn vị>,
+  "ngan_hang": "<tên ngân hàng nếu có>",
+  "noi_dung": "<nội dung chuyển khoản nếu có>",
+  "trang_thai": "<thành công/thất bại/không rõ>"
+}
+Nếu không tìm thấy số tiền, trả về "so_tien": null.
+Chỉ trả về JSON, không giải thích thêm."""
+
+        response = model.generate_content([prompt, img])
+        text = response.text.strip()
+
+        # Parse JSON từ response
+        import json, re
+        json_match = re.search(r'\{.*\}', text, re.DOTALL)
+        if json_match:
+            data = json.loads(json_match.group())
+            amount = data.get("so_tien")
+            if amount:
+                amount = float(str(amount).replace(",", "").replace(".", "").replace(" ", ""))
+            bank = data.get("ngan_hang", "")
+            note = data.get("noi_dung", "")
+            status = data.get("trang_thai", "")
+            info = f"🏦 {bank} | 📝 {note} | ✅ {status}" if bank else note
+            return {"amount": amount, "info": info}
+
+    except Exception as e:
+        logger.error(f"Lỗi Gemini Vision: {e}")
+
+    return {"amount": None, "info": ""}
+
 
 
 # ─── Excel ───────────────────────────────────────────────────────────────────
